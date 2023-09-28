@@ -1,0 +1,562 @@
+import 'package:card_sdk/I9BleControl.dart';
+import 'package:flutter/material.dart';
+import 'package:card_sdk/I9BleBean.dart';
+import 'package:dio/dio.dart';
+/*
+void main() {
+  runApp(ItronTest());
+}*/
+
+class I9View extends StatelessWidget {
+  const I9View({Key key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('I9plus Test'),
+      ),
+      body: ShowPic(),
+    );
+    /*
+    return MaterialApp(
+      title: '',
+      home: Scaffold(
+        appBar: AppBar(
+          title: Text('777'),
+        ),
+        body: ShowPic(),
+      ),
+    );*/
+  }
+}
+
+class ShowPic extends StatefulWidget {
+  const ShowPic({Key key}) : super(key: key);
+
+  @override
+  _ShowPicState createState() => _ShowPicState();
+}
+
+class _ShowPicState extends State<ShowPic> {
+  BleControl itronBle = BleControl();
+  String textStr = '';
+  String commandStr = 'Terminal info';
+  int commandIndex = 0;
+  List<String> commandList = [
+    "Terminal info",
+    "Pay card Or ICCard",
+    "Stop",
+    "Set automatic Shutdown",
+    "Power On APDU",
+    "Send APDU",
+    "Power Off APDU",
+    "Get batteryPower",
+    "Download AID parameters",
+    "Download publicKey",
+    "Calculate MAC",
+    "PIN entry",
+    "Update terminal time",
+    "EMV onlineRespose",
+    "Return terminal time",
+    "Download KEK",
+    "Download MK 3DES",
+    "Upgrade MK AES192",
+    "Upgrade DUKPT 3DES",
+    "Upgrade DUKPT AES192",
+    "Upgrade PinKey(MK/SK,3DES)",
+    "Upgrade PinKey(MK/SK,AES)"
+  ];
+  int testNumber = 0;
+  @override
+  void dispose() {
+    super.dispose();
+    itronBle.disconnect();
+  }
+
+  List<Widget> createSimpleDialogOption(BuildContext context) {
+    List<Widget> widgetList = [];
+    for (int i = 0; i < commandList.length; i++) {
+      SimpleDialogOption simpleDialogOption = SimpleDialogOption(
+        child: Text(commandList[i]),
+        onPressed: () {
+          setState(() {
+            commandStr = commandList[i];
+          });
+          commandIndex = i;
+          Navigator.of(context).pop();
+        },
+      );
+      widgetList.add(simpleDialogOption);
+    }
+    return widgetList;
+  }
+
+  sendCommand() {
+    switch (commandIndex) {
+      //Terminal info
+      case 0:
+        {
+          itronBle.getTerminalInfo((terminalInfo, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'getTerminalInfo success\n' +
+                  'terminalType:${terminalInfo.terminalType}\n' +
+                  'sn:${terminalInfo.sn}\n' +
+                  'tsn:${terminalInfo.tsn}\n' +
+                  'softVersion:${terminalInfo.softVersion}\n' +
+                  'softVersionDate:${terminalInfo.softVersionDate}\n' +
+                  'bluetoothName:${terminalInfo.bluetoothName}\n' +
+                  'bluetoothMAC:${terminalInfo.bluetoothMAC}\n';
+            } else {
+              str = 'getTerminalInfo fail';
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Pay card Or ICCard
+      case 1:
+        {
+          I9TradeData tradeData = I9TradeData();
+          tradeData.cash = '1200';
+          tradeData.encryptionAlgorithm = '0100';
+          tradeData.transactionInfo = I9TransactionInfo();
+          itronBle.startEmvProcess(60, tradeData, () {
+            setState(() {
+              textStr = 'please swipe or ic';
+            });
+          }, () {
+            setState(() {
+              textStr = 'IC card have inserted,please wait';
+            });
+          }, () {
+            setState(() {
+              textStr = 'NFCCard have detected,please wait';
+            });
+          }, (cardInfo, status) {
+            String str = '';
+            if (status == 0) {
+              String cardType = '';
+              if (cardInfo.cardType == 1) {
+                cardType = "IC Card";
+              }
+              if (cardInfo.cardType == 0) {
+                cardType = "Swipe";
+              }
+              if (cardInfo.cardType == 2) {
+                cardType = "Swipe";
+              }
+              if ((cardInfo.cardType & 0x03) == 0x03) {
+                cardType = "NFC";
+              }
+              str = 'Consume success\n' +
+                  'CardNumber:${cardInfo.cardNo}\n' +
+                  'CardType:${cardType}\n' +
+                  'cardexpiryDate:${cardInfo.cardexpiryDate}\n' +
+                  'CardSerial:${cardInfo.cardSerial}\n' +
+                  'CVM:${cardInfo.cvm}\n' +
+                  'ICData:${cardInfo.icdata}\n' +
+                  'TUSN:${cardInfo.tusn}\n' +
+                  'tsn:${cardInfo.tsn}\n' +
+                  'Tracks:${cardInfo.tracks}\n' +
+                  'TracksLen:${cardInfo.trackLen}\n';
+            } else {
+              str = 'Consum fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Stop
+      case 2:
+        {
+          itronBle.stopTrade((status) {
+            String str = '';
+            if (status == 0) {
+              str = 'stopTrade success\n';
+            } else {
+              str = 'stopTrade fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Set automatic Shutdown
+      case 3:
+        {
+          itronBle.setAutomaticShutdown(0, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'setAutomaticShutdown success\n';
+            } else {
+              str = 'setAutomaticShutdown fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Power On APDU,0 is IC,1 is NFC
+      case 4:
+        {
+          itronBle.powerOnAPDU(1, 10, (type, data, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'powerOnAPDU success\nType:${type}\ndata:${data}';
+            } else {
+              str = 'powerOnAPDU fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Send APDU
+      case 5:
+        {
+          //IC 00A404000E315041592E5359532E4444463031
+          //NFC 00A404000E325041592E5359532E4444463031
+          String apduStr = "00A404000E325041592E5359532E4444463031";
+          itronBle.sendApdu(1, [apduStr], 10, (data, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'sendAPDU success\n';
+              for (String str1 in data) {
+                str = str + 'result' + str1 + '\n';
+              }
+            } else {
+              str = 'sendAPDU fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Power Off APDU
+      case 6:
+        {
+          itronBle.powerOffAPDU((status) {
+            String str = '';
+            if (status == 0) {
+              str = 'powerOffAPDU success';
+            } else {
+              str = 'powerOffAPDU fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Get batteryPower
+      case 7:
+        {
+          itronBle.getBatteryPower((power, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'getBatteryPower success,power:${power}';
+            } else {
+              str =
+                  'getBatteryPower fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Download AID parameters
+      case 8:
+        {
+          I9AIDParameters aidParameters = I9AIDParameters();
+          aidParameters.aid = "A0000000041010";
+          aidParameters.asi = 0;
+          aidParameters.appVerNum = "0001";
+          aidParameters.tacDefault = "cc00fc8000";
+          aidParameters.tacOnline = "cc00fc8000";
+          aidParameters.tacDecline = "0000000000";
+          aidParameters.floorLimit = "00000000";
+          aidParameters.threshold = "00000000";
+          aidParameters.maxTargetPercent = 99;
+          aidParameters.targetPercent = 99;
+          aidParameters.termDDOL = "9f3704";
+          aidParameters.vlptranslimit = "000000100000";
+          aidParameters.termcvmlimit = "000999999999";
+          aidParameters.clessofflinelimitamt = "000000100000";
+          aidParameters.otherTLV = "9f1a0208405f2a020840";
+          itronBle.downloadAIDParameters(aidParameters, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'downloadAIDParameters success';
+            } else {
+              str = 'downloadAIDParameters fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Download publicKey
+      case 9:
+        {
+          I9CAPublicKey caPublicKey = I9CAPublicKey();
+          caPublicKey.rid = "A000000333";
+          caPublicKey.capki = 3;
+          caPublicKey.hashInd = 1;
+          caPublicKey.arithInd = 1;
+          caPublicKey.modul =
+              "b0627dee87864f9c18c13b9a1f025448bf13c58380c91f4ceba9f9bcb214ff8414e9b59d6aba10f941c7331768f47b2127907d857fa39aaf8ce02045dd01619d689ee731c551159be7eb2d51a372ff56b556e5cb2fde36e23073a44ca215d6c26ca68847b388e39520e0026e62294b557d6470440ca0aefc9438c923aec9b2098d6d3a1af5e8b1de36f4b53040109d89b77cafaf70c26c601abdf59eec0fdc8a99089140cd2e817e335175b03b7aa33d";
+          caPublicKey.exponent = "03";
+          caPublicKey.expireDate = "20241231";
+          caPublicKey.checkSum = "87F0CD7C0E86F38F89A66F8C47071A8B88586F26";
+          itronBle.downloadPublicKey(caPublicKey, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'downloadPublicKey success';
+            } else {
+              str = 'downloadPublicKey fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Calculate MAC
+      case 10:
+        {
+          itronBle.calculateMac('3132333435363738', (mac, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'calculateMac success,mac:${mac}';
+            } else {
+              str = 'calculateMac fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //PIN entry
+      case 11:
+        {
+          itronBle.pinEntry('12345678', '01', (pin, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'pinEntry success,pin:${pin}';
+            } else {
+              str = 'pinEntry fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Update terminal time
+      case 12:
+        {
+          DateTime now = DateTime.now();
+          String year = now.year.toString();
+          String month = now.month.toString();
+          if (month.length != 2) {
+            month = '0' + month;
+          }
+          String day = now.day.toString();
+          if (day.length != 2) {
+            day = '0' + day;
+          }
+          String hour = now.hour.toString();
+          if (hour.length != 2) {
+            hour = '0' + hour;
+          }
+          String minute = now.minute.toString();
+          if (minute.length != 2) {
+            minute = '0' + minute;
+          }
+          String second = now.second.toString();
+          if (second.length != 2) {
+            second = '0' + second;
+          }
+          String time = year + month + day + hour + minute + second;
+          itronBle.setTerminalDateTime(time, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'setTerminalDateTime success';
+            } else {
+              str = 'setTerminalDateTime fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //EMV onlineRespose
+      case 13:
+        {
+          itronBle.sendOnlineProcessResult(
+              '9F260821F5436F299C766C9F2701809F101307010103A0A002010A0100000000002F7846759F3704BE5826309F360200DC9505008000E0009A031909299C01009F02060000000012005F2A02084082027C009F1A0208409F3303E0F8C89F3501228408A000000333010102',
+              (onlineResult, scriptResult, data, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'onlineRespose success\n' +
+                  'onlineResult:${onlineResult.toString()}\n' +
+                  'scriptResult:${scriptResult}\n' +
+                  'data:${data}';
+            } else {
+              str = 'setTerminalDateTime fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Return terminal time
+      case 14:
+        {
+          itronBle.getTerminalDateTime((time, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'getTerminalDateTime success,time:${time}';
+            } else {
+              str = 'getTerminalDateTime fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      // update KEK
+      case 15:
+        {
+          String kek =
+              'AAE06992ACBF52A3E8F4A96EC9300BD7AAE06992ACBF52A3E8F4A96EC9300BD70B50E605FA';
+          itronBle.downloadKeK(kek, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'KEK download success';
+            } else {
+              str = 'KEK download fail';
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      // "Download MK 3DES",
+      case 16:
+        {}
+        break;
+      // "Upgrade MK AES192",
+      case 17:
+        {}
+        break;
+      // "Upgrade DUKPT 3DES",
+      case 18:
+        {}
+        break;
+      // "Upgrade DUKPT AES192",
+      case 19:
+        {}
+        break;
+      // "Upgrade PinKey(MK/SK,3DES)",
+      case 20:
+        {}
+        break;
+      // "Upgrade PinKey(MK/SK,AES)"
+      case 21s:
+        {}
+        break;
+      default:
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final width1 = size.width;
+    return Container(
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              color: Colors.grey,
+              width: width1,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: MaterialButton(
+                        onPressed: () {
+                          showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return SimpleDialog(
+                                  title: Text('Select Command'),
+                                  children: createSimpleDialogOption(context),
+                                );
+                              });
+                        },
+                        minWidth: 100,
+                        color: Colors.blue,
+                        child: Text(commandStr),
+                      ),
+                    ),
+                    flex: 1,
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: MaterialButton(
+                        onPressed: () {
+                          sendCommand();
+                        },
+                        minWidth: 100,
+                        color: Colors.red,
+                        child: Text('Send Command'),
+                      ),
+                    ),
+                    flex: 1,
+                  ),
+                ],
+              ),
+            ),
+            flex: 1,
+          ),
+          Expanded(
+            child: Container(
+              color: Colors.white,
+              width: width1,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(10, 10, 10, 10),
+                child: Text(textStr),
+              ),
+            ),
+            flex: 4,
+          ),
+        ],
+      ),
+    );
+  }
+}

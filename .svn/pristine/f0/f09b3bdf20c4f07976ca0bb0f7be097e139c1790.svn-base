@@ -1,0 +1,983 @@
+import 'dart:developer';
+
+import 'package:card_sdk/I9BleControl.dart';
+import 'package:card_sdk_example/view/AlertDialogWidget.dart';
+import 'package:flutter/material.dart';
+import 'package:card_sdk/I9BleBean.dart';
+import 'package:dio/dio.dart';
+/*
+void main() {
+  runApp(ItronTest());
+}*/
+
+class I9View extends StatelessWidget {
+  const I9View({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('I9plus Test'),
+      ),
+      body: ShowPic(),
+    );
+    /*
+    return MaterialApp(
+      title: '',
+      home: Scaffold(
+        appBar: AppBar(
+          title: Text('777'),
+        ),
+        body: ShowPic(),
+      ),
+    );*/
+  }
+}
+
+class ShowPic extends StatefulWidget {
+  const ShowPic({Key? key}) : super(key: key);
+
+  @override
+  _ShowPicState createState() => _ShowPicState();
+}
+
+class _ShowPicState extends State<ShowPic> {
+  BleControl itronBle = BleControl();
+  ScrollController scr = ScrollController();
+  String textStr = '';
+  String commandStr = 'Terminal info';
+  int commandIndex = 0;
+  List<String> commandList = [
+    "Terminal info",
+    "Pay card Or ICCard",
+    "Stop",
+    "Set automatic Shutdown",
+    "Power On APDU",
+    "Send APDU",
+    "Power Off APDU",
+    "Get batteryPower",
+    "Download AID parameters",
+    "Download publicKey",
+    "Calculate MAC",
+    "PIN entry",
+    "Update terminal time",
+    "EMV onlineRespose",
+    "Return terminal time",
+    "download KEK 3DES",
+    "Upgrade DUKPT 3DES Index0",
+    "Upgrade MK/SK 3DES Index1",
+    "Upgrade SK TDES, Index1, TDES 3Keys Data Key",
+    "Upgrade SK TDES, Index1, TDES 3Keys PIN Key",
+    "Upgrade SK TDES, Index1, TDES 3Keys MAC Key",
+    "Upgrade SK TDES, Index1, TDES 2Keys PIN Key",
+    "Request Display",
+    "download TKP",
+    "Request DataEncrypt",
+    "Request DataDecrypt",
+    "get SecretKey Info",
+    "PIN Encryption",
+  ];
+  int testNumber = 0;
+  @override
+  void dispose() {
+    super.dispose();
+    itronBle.disconnect();
+  }
+
+  List<Widget> createSimpleDialogOption(BuildContext context) {
+    List<Widget> widgetList = [];
+    for (int i = 0; i < commandList.length; i++) {
+      SimpleDialogOption simpleDialogOption = SimpleDialogOption(
+        child: Text(commandList[i]),
+        onPressed: () {
+          setState(() {
+            commandStr = commandList[i];
+          });
+          commandIndex = i;
+          Navigator.of(context).pop();
+        },
+      );
+      widgetList.add(simpleDialogOption);
+    }
+    return widgetList;
+  }
+
+  sendCommand(BuildContext context) {
+    switch (commandIndex) {
+      //Terminal info
+      case 0:
+        {
+          itronBle.getTerminalInfo((terminalInfo, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'getTerminalInfo success\n' +
+                  'terminalType:${terminalInfo!.terminalType}\n' +
+                  'sn:${terminalInfo.sn}\n' +
+                  'tsn:${terminalInfo.tsn}\n' +
+                  'softVersion:${terminalInfo.softVersion}\n' +
+                  'softVersionDate:${terminalInfo.softVersionDate}\n' +
+                  'kernelVersion:${terminalInfo.kernelVersion}\n' +
+                  'hardwareVersion:${terminalInfo.hardwareVersion}\n' +
+                  'bluetoothName:${terminalInfo.bluetoothName}\n' +
+                  'bluetoothMAC:${terminalInfo.bluetoothMAC}\n' +
+                  'operationMode:${terminalInfo.operationMode}\n' +
+                  'language:${terminalInfo.language}\n';
+            } else {
+              str = 'getTerminalInfo fail';
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Pay card Or ICCard
+      case 1:
+        {
+          AlertDialogWidget().showCupertinoDialog(context,
+              (cash, currencyCode, countryCode) {
+            I9TradeData tradeData = I9TradeData();
+            // 密文返回数据
+            // tradeData.sign = '4A673030';
+            // 明文返回数据
+            tradeData.sign = '10000000';
+            tradeData.cash = '1200';
+            if ((cash != '') && (cash != null)) {
+              tradeData.cash = cash;
+            }
+            tradeData.encryptionAlgorithm = '010000000240';
+            tradeData.transactionInfo = I9TransactionInfo();
+            tradeData.transactionInfo!.currencyCode = '0840';
+            tradeData.transactionInfo!.countryCode = '0840';
+            if ((currencyCode != '') && (currencyCode != null)) {
+              tradeData.transactionInfo!.countryCode = currencyCode;
+            }
+            if ((countryCode != '') && (countryCode != null)) {
+              tradeData.transactionInfo!.currencyCode = countryCode;
+            }
+            itronBle.startEmvProcess(60, tradeData, () {
+              setState(() {
+                textStr = 'please swipe or ic';
+              });
+            }, () {
+              setState(() {
+                textStr = 'IC card have inserted,please wait';
+              });
+            }, () {
+              setState(() {
+                textStr = 'NFCCard have detected,please wait';
+              });
+            }, (cardInfo, status) {
+              String str = '';
+              if (status == 0) {
+                String cardType = '';
+                if (cardInfo!.cardType == 1) {
+                  cardType = "IC Card";
+                }
+                if (cardInfo.cardType == 0) {
+                  cardType = "Swipe";
+                }
+                if (cardInfo.cardType == 2) {
+                  cardType = "Swipe";
+                }
+                if (cardInfo.cardType == 3) {
+                  cardType = "NFC";
+                }
+
+                str = 'Consume success\n' +
+                    'CardNumber:${cardInfo.cardNo}\n' +
+                    'CardName:${cardInfo.cardName}\n' +
+                    'CardType:${cardType}\n' +
+                    'cardexpiryDate:${cardInfo.cardexpiryDate}\n' +
+                    'CardSerial:${cardInfo.cardSerial}\n' +
+                    'CVM:${cardInfo.cvm}\n' +
+                    'ICData:${cardInfo.icdata}\n' +
+                    'TUSN:${cardInfo.tusn}\n' +
+                    'tsn:${cardInfo.tsn}\n' +
+                    'Tracks:${cardInfo.tracks}\n' +
+                    'encryTrack:${cardInfo.encryTrack}\n' +
+                    'TracksLen:${cardInfo.trackLen}\n' +
+                    'OriginalTrack:${cardInfo.originalTrack}\n' +
+                    'OriginalTracklength:${cardInfo.originalTracklength}\n' +
+                    'serviceCode:${cardInfo.serviceCode}\n' +
+                    'batteryLevel:${cardInfo.batteryLevel}\n';
+
+                if (cardInfo.ksn != null) {
+                  str = str + 'ksn:${cardInfo.ksn}\n';
+                }
+                if (cardInfo.dataKsn != null) {
+                  str = str + 'dataKsn:${cardInfo.dataKsn}\n';
+                }
+                if (cardInfo.trackKsn != null) {
+                  str = str + 'trackKsn:${cardInfo.trackKsn}\n';
+                }
+                if (cardInfo.macKsn != null) {
+                  str = str + 'macKsn:${cardInfo.macKsn}\n';
+                }
+                if (cardInfo.emvKsn != null) {
+                  str = str + 'emvKsn:${cardInfo.emvKsn}\n';
+                }
+
+                if ((cardInfo.originalTrack != null) &&
+                    (cardInfo.originalTrack!.length > 0) &&
+                    (cardInfo.originalTracklength != null) &&
+                    (cardInfo.originalTracklength!.length > 0)) {
+                  int track1Len =
+                      _hexToInt(cardInfo.originalTracklength!.substring(0, 2)) *
+                          2;
+                  int track2Len =
+                      _hexToInt(cardInfo.originalTracklength!.substring(2, 4));
+                  print('track1Len: ${track1Len}  track2Len:${track2Len}');
+                  if (track1Len > 0) {
+                    cardInfo.track1 =
+                        cardInfo.originalTrack!.substring(0, track1Len);
+                  }
+                  if (track2Len > 0) {
+                    cardInfo.track2 = cardInfo.originalTrack!
+                        .substring(track1Len, track1Len + track2Len);
+                  }
+                  str = str +
+                      'track1Len: ${track1Len}  track2Len:${track2Len} \n' +
+                      'cardInfo.track1: ${cardInfo.track1}  \n' +
+                      'cardInfo.track2: ${cardInfo.track2}';
+
+                  print(str);
+                }
+              } else {
+                str = 'Consum fail,error code:' + status.toRadixString(16);
+              }
+              setState(() {
+                textStr = str;
+              });
+            }, (errorID, msg) {
+              setState(() {
+                textStr = ' error code: ${errorID} msg: ${msg}';
+              });
+            }, (errorID, msg, code) {
+              setState(() {
+                textStr =
+                    ' error code: ${errorID} msg: ${msg} data code: ${code}';
+              });
+            });
+          });
+        }
+        break;
+      //Stop
+      case 2:
+        {
+          itronBle.stopTrade((status) {
+            String str = '';
+            if (status == 0) {
+              str = 'stopTrade success\n';
+            } else {
+              str = 'stopTrade fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Set automatic Shutdown
+      case 3:
+        {
+          itronBle.setAutomaticShutdown(0, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'setAutomaticShutdown success\n';
+            } else {
+              str = 'setAutomaticShutdown fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Power On APDU,0 is IC,1 is NFC
+      case 4:
+        {
+          itronBle.powerOnAPDU(1, 10, () {
+            setState(() {
+              textStr = 'please wait input';
+            });
+          }, (type, data, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'powerOnAPDU success\nType:${type}\ndata:${data}';
+            } else {
+              str = 'powerOnAPDU fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Send APDU
+      case 5:
+        {
+          //IC 00A404000E315041592E5359532E4444463031
+          //NFC 00A404000E325041592E5359532E4444463031
+          String apduStr = "00A404000E325041592E5359532E4444463031";
+          itronBle.sendApdu(1, [apduStr], 10, (data, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'sendAPDU success\n';
+              for (String str1 in data) {
+                str = str + 'result' + str1 + '\n';
+              }
+            } else {
+              str = 'sendAPDU fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Power Off APDU
+      case 6:
+        {
+          itronBle.powerOffAPDU((status) {
+            String str = '';
+            if (status == 0) {
+              str = 'powerOffAPDU success';
+            } else {
+              str = 'powerOffAPDU fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Get batteryPower
+      case 7:
+        {
+          itronBle.getBatteryPower((power, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'getBatteryPower success,power:${power}';
+            } else {
+              str =
+                  'getBatteryPower fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Download AID parameters
+      case 8:
+        {
+          I9AIDParameters aidParameters = I9AIDParameters();
+          aidParameters.aid = "A0000000041010";
+          aidParameters.asi = 0;
+          aidParameters.appVerNum = "0001";
+          aidParameters.tacDefault = "cc00fc8000";
+          aidParameters.tacOnline = "cc00fc8000";
+          aidParameters.tacDecline = "0000000000";
+          aidParameters.floorLimit = "00000000";
+          aidParameters.threshold = "00000000";
+          aidParameters.maxTargetPercent = 99;
+          aidParameters.targetPercent = 99;
+          aidParameters.termDDOL = "9f3704";
+          aidParameters.vlptranslimit = "000000100000";
+          aidParameters.termcvmlimit = "000999999999";
+          aidParameters.clessofflinelimitamt = "000000100000";
+          aidParameters.otherTLV = "9f1a0208405f2a020840";
+          itronBle.downloadAIDParameters(aidParameters, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'downloadAIDParameters success';
+            } else {
+              str = 'downloadAIDParameters fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Download publicKey
+      case 9:
+        {
+          I9CAPublicKey caPublicKey = I9CAPublicKey();
+          caPublicKey.rid = "A000000333";
+          caPublicKey.capki = 3;
+          caPublicKey.hashInd = 1;
+          caPublicKey.arithInd = 1;
+          caPublicKey.modul =
+              "b0627dee87864f9c18c13b9a1f025448bf13c58380c91f4ceba9f9bcb214ff8414e9b59d6aba10f941c7331768f47b2127907d857fa39aaf8ce02045dd01619d689ee731c551159be7eb2d51a372ff56b556e5cb2fde36e23073a44ca215d6c26ca68847b388e39520e0026e62294b557d6470440ca0aefc9438c923aec9b2098d6d3a1af5e8b1de36f4b53040109d89b77cafaf70c26c601abdf59eec0fdc8a99089140cd2e817e335175b03b7aa33d";
+          caPublicKey.exponent = "03";
+          caPublicKey.expireDate = "20241231";
+          caPublicKey.checkSum = "87F0CD7C0E86F38F89A66F8C47071A8B88586F26";
+          itronBle.downloadPublicKey(caPublicKey, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'downloadPublicKey success';
+            } else {
+              str = 'downloadPublicKey fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Calculate MAC
+      case 10:
+        {
+          // entype  1:DUKPT ; 2:MK/SK
+          // index  index
+          // mactype  0x00 ECB；0x01 CBC； 0x02 X919； 0x03 XOR ;  0x04 CMAC
+          // macData macData
+          itronBle.calculateMac(2, 1, 4, '0000000000000000',
+              (mac, ksn, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'calculateMac success\n' + 'mac:${mac}\n' + 'ksn:${ksn}\n';
+            } else {
+              str = 'calculateMac fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //PIN entry
+      case 11:
+        {
+          itronBle.pinEntry('12345678', '01', (pin, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'pinEntry success,pin:${pin}';
+            } else {
+              str = 'pinEntry fail,error code:' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Update terminal time
+      case 12:
+        {
+          DateTime now = DateTime.now();
+          String year = now.year.toString();
+          String month = now.month.toString();
+          if (month.length != 2) {
+            month = '0' + month;
+          }
+          String day = now.day.toString();
+          if (day.length != 2) {
+            day = '0' + day;
+          }
+          String hour = now.hour.toString();
+          if (hour.length != 2) {
+            hour = '0' + hour;
+          }
+          String minute = now.minute.toString();
+          if (minute.length != 2) {
+            minute = '0' + minute;
+          }
+          String second = now.second.toString();
+          if (second.length != 2) {
+            second = '0' + second;
+          }
+          String time = year + month + day + hour + minute + second;
+          itronBle.setTerminalDateTime(time, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'setTerminalDateTime success';
+            } else {
+              str = 'setTerminalDateTime fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //EMV onlineRespose
+      case 13:
+        {
+          itronBle.sendOnlineProcessResult('00', '',
+              (onlineResult, scriptResult, data, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'onlineRespose success\n' +
+                  'onlineResult:${onlineResult.toString()}\n' +
+                  'scriptResult:${scriptResult}\n' +
+                  'data:${data}';
+            } else {
+              str = 'setTerminalDateTime fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Return terminal time
+      case 14:
+        {
+          print('Return terminal time');
+          itronBle.getTerminalDateTime((time, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'getTerminalDateTime success,time:${time}';
+            } else {
+              str = 'getTerminalDateTime fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 15:
+        // "Upgrade KEK",
+        /**
+           * 更新KEK
+           * @param entype 0：TDES , 1：AES 
+           * @param keyLength  TDES: 16B or 24B, AES: 16B or 24B
+           * @param keyData keydata = KEK密文数据: KEK密文
+           * @param cmac 用KEK密钥对其他Data数据算CMAC值
+           */
+        // KEK  plaintext 80278BC7F68CE0885FE753ADBE15409680AA8937FE9F5D75
+        {
+          print('download KEK 3DES');
+          //
+          String kek = '2BBC760365CE72670A4DD8A7B95517F62E31B9170D943CA1';
+          String cmac = "8B014D";
+          itronBle.downloadKeK(0, 0x18, kek, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'KEK download success';
+            } else {
+              str = 'KEK download fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      // "Upgrade DUKPT 3DES Index0",
+      case 16:
+        {
+          print('Upgrade DUKPT 3DES Index0');
+          /**
+             * 更新 MK/DUKPT 指令
+             * @param keytype  0 MK , 1 DUKPT
+             * @param entype 0：TDES , 1：AES 
+             * @param index MK index 0-99; DUKPT 1-5
+             * @param keyLength  TDES: 16B or 24B, AES: 16B or 24B
+             * @param ksn DUKPT 是需要填写
+             * @param key  32Byte主密钥密文数据 +  (3Byte 或 5Byte Check Value)
+             * @param cmac 用KEK密钥对其他Data数据算CMAC值
+             */
+          // DUKPT plaintext key 6A C2 92 FA A1 31 5B 4D 85 8A B3 A3 D7 D5 93 3A
+          String mk = "098AEF205C857CD93A21F7ABAE523C13";
+          // TDES calculation mac
+          // key TDES ECB 0x0000000000000000  get MAC
+          String cmac = "AF8C07";
+          String ksn = "FFFF9876543210E00000";
+          itronBle.downloadMKDUKPT(1, 0, 0, 0x10, ksn, mk, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'MK download success';
+            } else {
+              str = 'MK download fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      // "Upgrade MK/SK, Index1, 3DES, TMK",
+      case 17:
+        {
+          /**
+           * update MK/DUKPT
+           * @param keytype  0 MK , 1 DUKPT
+           * @param entype 0：TDES , 1：AES 
+           * @param index MK index 0-99; DUKPT 1-5
+           * @param ksn DUKPT exists
+           * @param key
+           * @param cmac key 16biytes 0x00 CMAC   DES 3bytes/ AES 5bytes
+           */
+          // MK plaintext 111111111111111111111111111111112222222222222233
+          // key TDES ECB 0x0000000000000000  get MAC
+          print('Upgrade MK/SK, Index1, 3DES, TMK');
+          String mk = '0FD862575D40413E0FD862575D40413E5E100AF922F7E07A';
+          String cmac = '642873';
+          itronBle.downloadMKDUKPT(0, 0, 1, 0x18, '', mk, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'MK download success';
+            } else {
+              str = 'MK download fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      // "Upgrade SK TDES, Index1, TDES 3Keys Data Key",
+      case 18:
+        {
+          print('Upgrade SK TDES, Index1, TDES 3Keys Data Key');
+          /**
+           * 更新 SK
+           * @param index 密钥索引
+           * @param keytype 密钥类型 0x01 PINkey, 0x02=Data Key, 0x03=Mac Key
+           * @param entype 0：TDES , 1：AES 
+           * @param keyLength  TDES: 16B or 24B, AES: 16B or 24B
+           * @param key 密钥
+           * @param cmac 用KEK密钥对其他Data数据算CMAC值
+           */
+          // key  plaintext F439121BEC83D26B169BDCD5B22AAF8FF439121BEC83D26B
+          // key TDES ECB 0x0000000000000000  get MAC
+          String mk = "91B9F04806600572E8920E46D056761791B9F04806600572";
+          String cmac = "DBC74F";
+          itronBle.downloadSK(1, 0x02, 0, 0x18, mk, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'DUKPT download success';
+            } else {
+              str = 'DUKPT download fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      // "Upgrade SK TDES, Index1, TDES 3Keys PIN Key"
+      case 19:
+        {
+          print('Upgrade SK TDES, Index1, TDES 3Keys PIN Key');
+          // key plaintext  E039121BEC83D26B169BDCD5B22AAF8FE039121BEC83D26B
+          // key TDES ECB 0x0000000000000000  get MAC
+          String sk = '31D9FD2C6C2EA9E1E8920E46D056761731D9FD2C6C2EA9E1';
+          String cmac = '76AC5E';
+          itronBle.downloadSK(1, 0x01, 0, 0x18, sk, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'Upgrade PinKey(MK/SK,3DES) download success';
+            } else {
+              str = 'Upgrade PinKey(MK/SK,3DES) download fail ' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      //Upgrade SK TDES, Index1, TDES 3Keys MAC Key
+      case 20:
+        {
+          print('Upgrade SK TDES, Index1, TDES 3Keys MAC Key');
+          //key plaintext F6 39 12 1B EC 83 D2 6B 16 9B DC D5 B2 2A AF 8F
+          String sk = '64D22042517B853EE8920E46D0567617';
+          // TDES calculation mac
+          // key TDES ECB 0x0000000000000000  get MAC
+          String cmac = '88ADFF';
+          itronBle.downloadSK(1, 0x03, 0, 0x10, sk, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'Upgrade PinKey(MK/SK,3DES) download success';
+            } else {
+              str = 'Upgrade PinKey(MK/SK,3DES) download fail ' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 21:
+        //Upgrade SK TDES, Index3, TDES 2Keys PIN Key
+        {
+          print('Upgrade SK TDES, Index1, TDES 2Keys PIN Key');
+          //key plaintext 28 97 3E 34 37 0D B4 16 C4 0F 3F E4 77 FF 5C 6B
+          String sk = '56E794D248C76E84B9AC0D800FF5F432';
+          // TDES calculation mac
+          // key TDES ECB 0x0000000000000000  get MAC
+          String cmac = '7EC5F8';
+          itronBle.downloadSK(1, 0x01, 0, 0x10, sk, cmac, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'Upgrade PinKey(MK/SK,3DES) download success';
+            } else {
+              str = 'Upgrade PinKey(MK/SK,3DES) download fail ' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 22:
+        //Request Display
+        {
+          print('Request Display');
+          itronBle.requestDisplay(
+              16, 5, "Balance: 1000.00", 0, 1000, 2, 0, 5000, 0, (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'Request Display success';
+            } else {
+              str = 'Request Display fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          }, (errorID, msg) {
+            setState(() {
+              textStr = ' error code: ${errorID} msg: ${msg}';
+            });
+          }, () {
+            setState(() {
+              textStr = 'please wait input';
+            });
+          });
+        }
+        break;
+      case 23:
+        //download TKP
+        {
+          print('download TKP');
+          itronBle.downloadTPK(
+              1,
+              0,
+              0x18,
+              "91B9F04806600572E8920E46D05676170110AF4BBFC0AAFF",
+              "37730C", (status) {
+            String str = '';
+            if (status == 0) {
+              str = 'download TKP success';
+            } else {
+              str = 'download TKP fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 24:
+        //Request DataEncrypt
+        {
+          print('Request DataEncrypt');
+          itronBle.requestDataEncrypt(
+              "343031323334353637383930394439383700000000000000",
+              2,
+              1,
+              "0000000011223344",
+              0,
+              0,
+              "", (encryptedData, ksn, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'Request DataEncrypt success\n' +
+                  'encryptedData:${encryptedData}\n' +
+                  'ksn:${ksn}\n' +
+                  'status:${status}';
+            } else {
+              str = 'Request DataEncrypt fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 25:
+        //Request DataDecrypt
+        {
+          print('Request DataDecrypt');
+          itronBle.requestDataDecrypt(
+              "D593EFA0780F0630948CF9BC2B70D6978E859400CBDADE62",
+              2,
+              1,
+              "0000000011223344",
+              0,
+              0,
+              "", (decryptData, ksn, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'Request DataDecrypt success\n' +
+                  'decryptData:${decryptData}\n' +
+                  'ksn:${ksn}\n' +
+                  'status:${status}';
+            } else {
+              str = 'Request DataDecrypt fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 26:
+        //get SecretKey Info
+        {
+          print('get SecretKey Info');
+          itronBle.getSecretKeyInfo(2, 0, 1, 0x82, (keyInfo, kcv, ksn, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'get SecretKey Info success\n' +
+                  'keyInfo:${keyInfo}\n' +
+                  'kcv:${kcv}\n' +
+                  'ksn:${ksn}\n' +
+                  'status:${status}';
+            } else {
+              str = 'get SecretKey Info fail ' + status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      case 27:
+        //PIN Encryption
+        {
+          print('PIN Encryption');
+          // 010000000000 有ksn
+          // 020100000000 无ksn
+          itronBle.terminalEncryptionPIN('', '123456', '010000000000',
+              (pin, ksn, status) {
+            String str = '';
+            if (status == 0) {
+              str = 'terminalEncryptionPIN success, pin:${pin}, ksn:${ksn}';
+            } else if (status == 0x4B) {
+              str =
+                  'terminalEncryptionPIN fail,please swip card first,error code:' +
+                      status.toRadixString(16);
+            } else {
+              str = 'terminalEncryptionPIN fail,error code:' +
+                  status.toRadixString(16);
+            }
+            setState(() {
+              textStr = str;
+            });
+          });
+        }
+        break;
+      default:
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final width1 = size.width;
+    return Container(
+      child: Column(
+        children: [
+          Expanded(
+            child: Container(
+              color: Colors.grey,
+              width: width1,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: MaterialButton(
+                        onPressed: () {
+                          showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return SimpleDialog(
+                                  title: Text('Select Command'),
+                                  children: createSimpleDialogOption(context),
+                                );
+                              });
+                        },
+                        minWidth: 100,
+                        color: Colors.blue,
+                        child: Text(commandStr),
+                      ),
+                    ),
+                    flex: 1,
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: MaterialButton(
+                        onPressed: () {
+                          sendCommand(context);
+                        },
+                        minWidth: 100,
+                        color: Colors.red,
+                        child: Text('Send Command'),
+                      ),
+                    ),
+                    flex: 1,
+                  ),
+                ],
+              ),
+            ),
+            flex: 1,
+          ),
+          Expanded(
+            child: Container(
+              color: Colors.white,
+              width: width1,
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(10, 10, 10, 50),
+                child: Scrollbar(
+                  controller: scr,
+                  isAlwaysShown: true,
+                  child: SingleChildScrollView(
+                    controller: scr,
+                    child: Text(textStr),
+                  ),
+                ),
+              ),
+            ),
+            flex: 4,
+          ),
+        ],
+      ),
+    );
+  }
+
+  int _hexToInt(String hex) {
+    int val = 0;
+    int len = hex.length;
+    for (int i = 0; i < len; i++) {
+      int hexDigit = hex.codeUnitAt(i);
+      if (hexDigit >= 48 && hexDigit <= 57) {
+        val += (hexDigit - 48) * (1 << (4 * (len - 1 - i)));
+      } else if (hexDigit >= 65 && hexDigit <= 70) {
+        // A..F
+        val += (hexDigit - 55) * (1 << (4 * (len - 1 - i)));
+      } else if (hexDigit >= 97 && hexDigit <= 102) {
+        // a..f
+        val += (hexDigit - 87) * (1 << (4 * (len - 1 - i)));
+      } else {
+        throw new FormatException("Invalid hexadecimal value");
+      }
+    }
+    return val;
+  }
+}

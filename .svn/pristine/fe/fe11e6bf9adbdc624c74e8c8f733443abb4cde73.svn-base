@@ -1,0 +1,26 @@
+//
+//  Generated file. Do not edit.
+//
+
+#import "GeneratedPluginRegistrant.h"
+
+#if __has_include(<card_sdk/CardSdkPlugin.h>)
+#import <card_sdk/CardSdkPlugin.h>
+#else
+@import card_sdk;
+#endif
+
+#if __has_include(<flutter_blue/FlutterBluePlugin.h>)
+#import <flutter_blue/FlutterBluePlugin.h>
+#else
+@import flutter_blue;
+#endif
+
+@implementation GeneratedPluginRegistrant
+
++ (void)registerWithRegistry:(NSObject<FlutterPluginRegistry>*)registry {
+  [CardSdkPlugin registerWithRegistrar:[registry registrarForPlugin:@"CardSdkPlugin"]];
+  [FlutterBluePlugin registerWithRegistrar:[registry registrarForPlugin:@"FlutterBluePlugin"]];
+}
+
+@end
